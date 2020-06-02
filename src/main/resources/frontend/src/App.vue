@@ -28,7 +28,6 @@
             toolbarTitle: "Github代下载服务"
         }),
         mounted() {
-            this.$router.replace("/")
             this.$router.beforeEach((to, from, next) => {
                 this.$data.showAppBarIcon = to.path == "/about"
                 if (to.path == "/about"){

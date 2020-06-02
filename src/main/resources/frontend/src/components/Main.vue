@@ -28,9 +28,17 @@
         }),
         methods: {
             getDownloadLink() {
+                let prefix: String
+                if (process.env.VUE_APP_MODE == "development"){
+                    prefix = "http://localhost:4000"
+                }else if (process.env.VUE_APP_MODE == "production"){
+                    prefix = "http://45.32.228.179:4000"
+                }else {
+                    prefix = ""
+                }
                 const axios = require("axios").default
                 if (this.$data.readyToDownload){
-                    axios.get("/api/file?fileName=" + this.$data.downloadUrl,{
+                    axios.get(prefix + "/file?fileName=" + this.$data.downloadUrl,{
                         responseType: "arraybuffer"
                     }).then((res: AxiosResponse) => {
                         if (res.status == 200){
@@ -43,7 +51,7 @@
                 }
 
                 function checking(url: String, _this: Vue) {
-                    axios.get("/api/checkout?url=" + url)
+                    axios.get(prefix + "/checkout?url=" + url)
                         .then((res: AxiosResponse) => {
                             let status = res.data.status
                             if (status == "checking out") {
