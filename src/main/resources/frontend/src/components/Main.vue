@@ -1,74 +1,79 @@
 <template>
     <v-container style="height: 100%">
         <v-row align="center" justify="center" style="height: 100%">
-            <v-col cols="6">
-                <v-text-field filled label="在此输入URL" v-model="urlToDownload"
+            <v-col cols="10" sm="7" md="7" lg="6" xl="6">
+                <v-text-field
+                        :loading="$store.state.theState === 1 || $store.state.theState === 2"
+                        :disabled="$store.state.textFieldDisabled"
+                              filled label="在此输入URL" v-model="$store.state.urlToDownload"
                               prepend-inner-icon="mdi-github" shaped></v-text-field>
                 <v-row dense align="center" justify="center">
-                    <v-btn v-if="!readyToDownload" text outlined @click="getDownloadLink" v-text="btnText"></v-btn>
-                    <v-btn v-if="readyToDownload" text outlined :href="downloadUrl">打包完成，点此下载</v-btn>
+                    <v-btn v-if="!$store.state.readyToDownload"
+                           text outlined @click="getDownloadLink"
+                           v-text="btnText" :disabled="$store.state.btnDisabled"></v-btn>
+                    <v-btn v-if="$store.state.readyToDownload" text outlined :href="$store.state.downloadUrl">打包完成，点此下载</v-btn><br><br>
+                    <v-btn v-if="$store.state.readyToDownload" text outlined @click="reset" v-text="resetBtn" style="margin-left: 8px"></v-btn>
                 </v-row>
             </v-col>
         </v-row>
-        <v-snackbar color="red" light v-model="snackbar">URL不能为空</v-snackbar>
+        <v-snackbar color="red" light v-model="snackbar" >URL不能为空</v-snackbar>
     </v-container>
 </template>
 
 <script lang="ts">
     import Vue from "vue"
-    import {AxiosError, AxiosResponse} from "axios";
+    import {State} from "@/store";
+
     export default Vue.extend( {
         name: "Main",
         data: () => ({
-            urlToDownload: "",
             snackbar: false,
             btnText: "开始",
-            readyToDownload: false,
-            downloadUrl: ""
+            resetBtn: "重置状态"
         }),
+        mounted() {
+            this.$store.state.messageListeners.add(this.onMessage)
+        },
         methods: {
             getDownloadLink() {
-                let prefix: String
-                if (process.env.VUE_APP_MODE == "development"){
-                    prefix = "http://localhost:4000"
-                }else if (process.env.VUE_APP_MODE == "production"){
-                    prefix = "http://45.32.228.179:4000"
-                }else {
-                    prefix = ""
-                }
-                const axios = require("axios").default
-                if (this.$data.readyToDownload){
-                    axios.get(prefix + "/file?fileName=" + this.$data.downloadUrl,{
-                        responseType: "arraybuffer"
-                    }).then((res: AxiosResponse) => {
-                        if (res.status == 200){
-                            window.location.href=URL.createObjectURL(new Blob([res.data.fileName], {type: "x-zip-compressed"}))
-                        }
-                    }).catch((e: AxiosError) => {
-                        console.log(e.message)
-                    })
+                const url = this.$store.state.urlToDownload
+                if (url == ""){
+                    this.$data.snackbar = true
+                    setTimeout(() => this.$data.snackbar = false, 1500)
                     return
                 }
-
-                function checking(url: String, _this: Vue) {
-                    axios.get(prefix + "/checkout?url=" + url)
-                        .then((res: AxiosResponse) => {
-                            let status = res.data.status
-                            if (status == "checking out") {
-                                _this.$data.btnText = "正在检出代码"
-                                setTimeout(() => checking(url, _this), 2000)
-                            } else if (status == "compressing") {
-                                _this.$data.btnText = "正在打包"
-                                setTimeout(() => checking(url, _this),2000)
-                            } else if (status == "completed"){
-                                _this.$data.readyToDownload = true
-                                _this.$data.downloadUrl = "/api/file?fileName=" + res.data.fileName
-                            }
-                        }).catch((e: AxiosError) => {
-                        console.log(e.message)
-                    })
+                const ws = this.$store.state.ws
+                ws.send(url)
+            },
+            onMessage(ws: WebSocket,e: MessageEvent){
+                if (e.data == "start checking"){
+                    this.$data.btnText = "正在检出代码"
+                    this.$store.state.textFieldDisabled = true
+                    this.$store.state.btnDisabled = true
+                    this.$store.state.theState = State.CHECKING_OUT
+                }else if (e.data == "start compressing"){
+                    this.$data.btnText = "正在打包"
+                    this.$store.state.theState = State.COMPRESSING
+                }else if (e.data == "completed"){
+                    this.$store.state.readyToDownload = true
+                    this.$store.state.theState = State.COMPLETED
+                }else{
+                    let prefix = ""
+                    if (process.env.VUE_APP_MODE == "development"){
+                        prefix = "http://localhost:4000/file?fileName="
+                    }else{
+                        prefix = "http://45.32.228.179:4000/file?fileName="
+                    }
+                    this.$store.state.downloadUrl = prefix + e.data
                 }
-                checking(this.$data.urlToDownload,this)
+            },
+            reset(){
+                this.$data.btnText = "开始"
+                this.$store.state.btnDisabled = false
+                this.$store.state.textFieldDisabled = false
+                this.$store.state.urlToDownload = ""
+                this.$store.state.readyToDownload = false
+                this.$store.state.theState = State.READY
             }
         }
     })

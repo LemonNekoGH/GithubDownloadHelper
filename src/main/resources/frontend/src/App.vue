@@ -1,7 +1,7 @@
 <template>
     <v-app>
-        <v-app-bar app elevate-on-scroll absolute>
-            <v-btn icon v-if="showAppBarIcon" @click="returnToMain"><v-icon>mdi-arrow-left</v-icon></v-btn>
+        <v-app-bar app elevate-on-scroll>
+            <v-btn icon v-if="$store.state.showAppBarIcon" @click="returnToMain"><v-icon>mdi-arrow-left</v-icon></v-btn>
             <v-toolbar-title v-text="toolbarTitle"></v-toolbar-title>
         </v-app-bar>
         <v-content app>
@@ -9,6 +9,7 @@
             <v-fade-transition mode="out-in">
                 <router-view></router-view>
             </v-fade-transition>
+            <v-snackbar v-model="snackbar" color="orange">已切换到后台继续进行</v-snackbar>
         </v-content>
         <v-footer>
             <div></div>
@@ -20,23 +21,40 @@
 
 <script lang="ts">
     import Vue from 'vue';
+    import {State} from "@/store";
 
     export default Vue.extend({
         name: 'App',
         data: () => ({
-            showAppBarIcon: false,
-            toolbarTitle: "Github代下载服务"
+            toolbarTitle: "Github代下载服务",
+            snackbar: false
         }),
         mounted() {
             this.$router.beforeEach((to, from, next) => {
-                this.$data.showAppBarIcon = to.path == "/about"
+                this.$store.state.showAppBarIcon = to.path == "/about"
                 if (to.path == "/about"){
                     this.$data.toolbarTitle = "Github代下载服务 - 关于"
+                    if (this.$store.state.theState != State.READY &&
+                        this.$store.state.theState != State.COMPLETED){
+                        this.$data.snackbar = true
+                        setTimeout(() => this.$data.snackbar = false,3000)
+                    }
                 }else{
                     this.$data.toolbarTitle = "Github代下载服务"
                 }
                 next()
             })
+            window.onbeforeunload = () => {
+                if (this.$store.state.theState != State.READY &&
+                this.$store.state.theState != State.COMPLETED){
+                    if (this.$store.state.theState == State.CHECKING_OUT){
+                        return window.confirm("项目正在检出，离开页面将取消检出")
+                    }else{
+                        return window.confirm("项目正在打包，离开页面将取消打包")
+                    }
+                }
+                return true
+            }
         },
         methods: {
             returnToMain(){

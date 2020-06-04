@@ -26,20 +26,46 @@
                         这个项目的最初版本由 Github@xiaoxinda 使用PHP实现，柠喵想要为这个服务搭建备用节点时因为看不懂PHP而使用Java重新实现。
                         和原项目一样，这个项目同样在Github上开源。
                     </v-card-text>
+                    <v-divider></v-divider>
                     <v-card-actions>
-                        <v-spacer></v-spacer>
-                        <v-btn outlined text><a style="text-decoration: none" href="https://github.com/LemonNekoGH/Github-Proxy-Java">前往Github</a></v-btn>
-                        <v-btn outlined text><a style="text-decoration: none" href="https://space.bilibili.com/5325421">前往柠喵的B站空间</a></v-btn>
+                        <v-btn text width="100%">
+                            <a style="text-decoration: none" href="https://github.com/LemonNekoGH/Github-Proxy-Java">前往Github</a>
+                        </v-btn>
+                    </v-card-actions>
+                    <v-divider></v-divider>
+                    <v-card-actions>
+                        <v-btn text width="100%">
+                            <a style="text-decoration: none" href="https://space.bilibili.com/5325421">前往柠喵的B站空间</a>
+                        </v-btn>
+                    </v-card-actions>
+                    <v-divider></v-divider>
+                    <v-card-actions>
+                        <v-btn text width="100%">
+                            <a style="text-decoration: none" href="https://afdian.net/@TAGP0">为柠喵发电</a>
+                        </v-btn>
                     </v-card-actions>
                 </v-card>
             </v-col>
         </v-row>
+        <v-snackbar v-model="snackbar">操作已经顺利完成，可以下载了</v-snackbar>
     </v-container>
 </template>
 
 <script lang="ts">
     import Vue from "vue"
     export default Vue.extend({
-        name: "About"
+        name: "About",
+        data: () => ({
+            snackbar: false
+        }),
+        mounted() {
+            const _this = this
+            this.$store.state.messageListeners.add(function (ws: WebSocket, e: MessageEvent) {
+                if (e.data == "completed"){
+                    _this.$data.snackbar = true
+                    setTimeout(() => _this.$data.snackbar = false, 3000)
+                }
+            })
+        }
     })
 </script>

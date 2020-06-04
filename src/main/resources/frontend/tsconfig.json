@@ -14,7 +14,8 @@
     "types": [
       "webpack-env",
       "vuetify",
-      "vue-router"
+      "vue-router",
+      "ws"
     ],
     "paths": {
       "@/*": [
