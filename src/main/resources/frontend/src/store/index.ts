@@ -7,7 +7,7 @@ let prefix = "";
 if (process.env.VUE_APP_MODE == "development"){
   prefix = "ws://localhost:4000/checkout"
 }else if (process.env.VUE_APP_MODE == "production"){
-  prefix = "ws://45.32.228.179:4000/checkout"
+  prefix = "ws://8.210.48.126:4000/checkout"
 }
 
 export enum State{

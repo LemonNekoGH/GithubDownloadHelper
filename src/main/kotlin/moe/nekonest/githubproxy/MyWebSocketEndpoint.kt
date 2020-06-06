@@ -18,6 +18,7 @@ interface WebSocketEndpoint{
 class MyWebSocketEndpoint : WebSocketEndpoint {
     private val logger = LogManager.getLogger()
     private val sessionMap = HashMap<String, Session>()
+
     @OnOpen
     override fun onOpen(session: Session) {
         logger.info("有新的链接被建立了！用户ID是${session.id}")

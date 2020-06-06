@@ -11,7 +11,7 @@
                     <v-btn v-if="!$store.state.readyToDownload"
                            text outlined @click="getDownloadLink"
                            v-text="btnText" :disabled="$store.state.btnDisabled"></v-btn>
-                    <v-btn v-if="$store.state.readyToDownload" text outlined :href="$store.state.downloadUrl">打包完成，点此下载</v-btn><br><br>
+                    <v-btn v-if="$store.state.readyToDownload" text outlined target="_blank" :href="$store.state.downloadUrl">打包完成，点此下载</v-btn><br><br>
                     <v-btn v-if="$store.state.readyToDownload" text outlined @click="reset" v-text="resetBtn" style="margin-left: 8px"></v-btn>
                 </v-row>
             </v-col>
@@ -62,7 +62,7 @@
                     if (process.env.VUE_APP_MODE == "development"){
                         prefix = "http://localhost:4000/file?fileName="
                     }else{
-                        prefix = "http://45.32.228.179:4000/file?fileName="
+                        prefix = "http://8.210.48.126:4000/file?fileName="
                     }
                     this.$store.state.downloadUrl = prefix + e.data
                 }

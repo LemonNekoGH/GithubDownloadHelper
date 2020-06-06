@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "moe.nekonest"
-version = "0.1.0-Release"
+version = "0.1.1"
 java.sourceCompatibility = JavaVersion.VERSION_1_8
 
 repositories {

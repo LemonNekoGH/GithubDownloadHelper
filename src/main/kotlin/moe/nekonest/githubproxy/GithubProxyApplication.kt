@@ -5,8 +5,11 @@ import moe.nekonest.githubproxy.util.CloneThread
 import moe.nekonest.githubproxy.util.compareTo
 import moe.nekonest.githubproxy.util.getAttribute
 import org.apache.logging.log4j.LogManager
+import org.springframework.boot.SpringApplication
 import org.springframework.boot.autoconfigure.SpringBootApplication
+import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.boot.runApplication
+import org.springframework.context.ApplicationListener
 import org.springframework.stereotype.Controller
 import org.springframework.web.bind.annotation.RequestMapping
 import java.io.File
@@ -24,41 +27,6 @@ class GithubProxyApplication
 @Controller
 class MainController {
     private val logger = LogManager.getLogger()
-
-//    /**
-//     *  检查当前会话是否已经在检出代码了
-//     *  是：返回状态，如果已经完成就放出下载地址
-//     *  否：新建线程用于检出代码，并将这个线程放进会话属性中
-//     */
-//    @Deprecated("这是普通Http协议，正在实现websocket协议")
-//    @RequestMapping("/checkoutD")
-//    fun getUrl(url: String, request: HttpServletRequest, response: HttpServletResponse) {
-//        response.addHeader("Access-Control-Allow-Origin", "*")
-//        val out = response.outputStream
-//        logger.info("收到请求，url: $url")
-//        val session = request.session
-//        if (session == null) {
-//            "{\"status\": \"failed\"}" > out
-//        }
-//        var thread = session.getAttribute("thread") as CloneThread?
-//        if (thread == null) {
-//            logger.info("新建会话")
-//            thread = CloneThread(url)
-//            thread.start()
-//            session.setAttribute("thread", thread)
-//            "{\"status\": \"checking out\"}" > out
-//        } else {
-//            logger.info("返回已有会话状态：${thread.status}")
-//            when (thread.status) {
-//                CloneThread.Status.READY -> "" > out
-//                CloneThread.Status.CHECKING_OUT -> "{\"status\": \"checking out\"}" > out
-//                CloneThread.Status.COMPRESSING -> "{\"status\": \"compressing\"}" > out
-//                CloneThread.Status.COMPLETED ->
-//                    "{\"status\": \"completed\",\"fileName\": \"${thread.output}\"}" > out
-//            }
-//        }
-//    }
-
 
     @RequestMapping("/file")
     fun getFile(fileName: String, request: HttpServletRequest, response: HttpServletResponse) {
@@ -80,7 +48,6 @@ class MainController {
         }
     }
 }
-
 
 fun main(args: Array<String>) {
     runApplication<GithubProxyApplication>(*args)
