@@ -5,7 +5,7 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
 
-class OldFileDeleteThread : Thread() {
+class OldFileDeleteThread(private val sleepTime: Long, private val fileTimedOut: Long) : Thread() {
     private val logger = LogManager.getLogger()
     override fun run() {
         while (true){
@@ -15,13 +15,13 @@ class OldFileDeleteThread : Thread() {
             val archiveDir = File(ARCHIVE_DIR)
             System.gc()
             archiveDir.listFiles()?.forEach(this::checkFileTimeAndDelete)
-            sleep(SLEEP_TIME)
+            sleep(sleepTime)
         }
     }
 
     private fun checkFileTimeAndDelete(file: File){
         val time = file.lastModified()
-        if (System.currentTimeMillis() - time > FILE_TIME_OUT){
+        if (System.currentTimeMillis() - time > fileTimedOut){
             logger.info("正在删除已过期文件（夹）：${file.name}")
             doDelete(file)
         }

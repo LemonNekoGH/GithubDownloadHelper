@@ -45,15 +45,11 @@
                 next()
             })
             window.onbeforeunload = () => {
-                if (this.$store.state.theState != State.READY &&
-                this.$store.state.theState != State.COMPLETED){
-                    if (this.$store.state.theState == State.CHECKING_OUT){
-                        return window.confirm("项目正在检出，离开页面将取消检出")
-                    }else{
-                        return window.confirm("项目正在打包，离开页面将取消打包")
-                    }
+                if (this.$store.state.theState !== 0 &&
+                this.$store.state.theState !== 5 &&
+                this.$store.state.theState !== 6){
+                    return window.confirm()
                 }
-                return true
             }
         },
         methods: {

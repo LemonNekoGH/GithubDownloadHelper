@@ -2,6 +2,8 @@
 
 package moe.nekonest.githubproxy.util
 
+import com.alibaba.fastjson.JSONObject
+import java.io.File
 import java.io.OutputStream
 import javax.websocket.Session
 
@@ -18,4 +20,14 @@ private val Session.attributes: HashMap<String, Any?>
 fun <T> Session.getAttribute(name: String): T? {
     val attr = attributes[name] ?: return null
     return attr as T
+}
+
+fun File.notExists() = !exists()
+
+fun Session.sendJSON(vararg pairs: Pair<String, String>){
+    val jsonObject = JSONObject()
+    for (pair in pairs){
+        jsonObject[pair.first] = pair.second
+    }
+    basicRemote.sendText(jsonObject.toJSONString())
 }
