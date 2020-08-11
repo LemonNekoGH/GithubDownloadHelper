@@ -1,9 +1,8 @@
-package moe.nekonest.githubproxy.util
+package moe.nekonest.gdh.util
 
 import org.apache.logging.log4j.LogManager
 import java.io.File
 import java.io.FileNotFoundException
-import java.lang.IllegalStateException
 import java.net.URL
 import java.net.UnknownHostException
 import javax.websocket.Session

@@ -1,6 +1,6 @@
 @file:Suppress("UNCHECKED_CAST")
 
-package moe.nekonest.githubproxy.util
+package moe.nekonest.gdh.util
 
 import com.alibaba.fastjson.JSONObject
 import java.io.File

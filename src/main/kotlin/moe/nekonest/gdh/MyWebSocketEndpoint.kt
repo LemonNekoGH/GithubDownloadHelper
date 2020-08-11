@@ -1,8 +1,8 @@
-package moe.nekonest.githubproxy
+package moe.nekonest.gdh
 
-import moe.nekonest.githubproxy.util.CloneThread
-import moe.nekonest.githubproxy.util.DownloadThread
-import moe.nekonest.githubproxy.util.sendJSON
+import moe.nekonest.gdh.util.CloneThread
+import moe.nekonest.gdh.util.DownloadThread
+import moe.nekonest.gdh.util.sendJSON
 import org.apache.logging.log4j.LogManager
 import org.springframework.stereotype.Service
 import javax.websocket.*

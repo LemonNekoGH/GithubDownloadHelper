@@ -1,1 +1,1 @@
-rootProject.name = "github-proxy"
+rootProject.name = "github-download-helper"

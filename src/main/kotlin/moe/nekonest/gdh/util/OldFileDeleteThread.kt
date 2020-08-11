@@ -1,4 +1,4 @@
-package moe.nekonest.githubproxy.util
+package moe.nekonest.gdh.util
 
 import org.apache.logging.log4j.LogManager
 import java.io.File

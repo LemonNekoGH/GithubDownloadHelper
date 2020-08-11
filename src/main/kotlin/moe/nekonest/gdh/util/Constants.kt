@@ -1,4 +1,4 @@
-package moe.nekonest.githubproxy.util
+package moe.nekonest.gdh.util
 
 import java.io.File
 
@@ -11,3 +11,11 @@ const val SIZE_KB = SIZE_B * 1024
 const val SIZE_MB = SIZE_KB * 1024
 const val SIZE_GB = SIZE_MB * 1024
 const val SIZE_TB = SIZE_GB * 1024
+
+object Time {
+    const val SECOND = 1000L
+    const val MINUTE = 60 * SECOND
+    const val HOUR = 60 * MINUTE
+    const val DAY = 24 * HOUR
+    const val WEEK = 7 * DAY
+}

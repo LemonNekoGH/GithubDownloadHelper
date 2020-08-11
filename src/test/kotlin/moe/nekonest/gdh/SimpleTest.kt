@@ -1,6 +1,6 @@
-package moe.nekonest.githubproxy
+package moe.nekonest.gdh
 
-import moe.nekonest.githubproxy.util.ZipUtil
+import moe.nekonest.gdh.util.ZipUtil
 import org.junit.jupiter.api.Test
 import java.io.File
 

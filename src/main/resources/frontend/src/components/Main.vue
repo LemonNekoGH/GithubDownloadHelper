@@ -8,7 +8,9 @@
                         && $store.state.theState !== 5"
                         :disabled="$store.state.textFieldDisabled"
                         filled label="在此输入URL" v-model="$store.state.urlToDownload"
-                        prepend-inner-icon="mdi-github">
+                        prepend-inner-icon="mdi-github"
+                        append-icon="mdi-help-circle-outline"
+                        @click:append="help = true">
                     <template v-slot:progress>
                         <v-progress-linear
                                 absolute
@@ -51,6 +53,22 @@
                 </v-card-actions>
             </v-card>
         </v-dialog>
+        <v-dialog v-model="help" max-width="550">
+            <v-card>
+                <v-card-title>帮助</v-card-title>
+                <v-card-text>
+                    Q：仅限Github资源吗？<br>
+                    A：是的，因为做这个站的初衷就是为了能更快地下载Github源码<br>
+                    Q：能下载Release和Archive包吗？<br>
+                    A：可以，毕竟Release和Archive包的下载速度也很慢<br>
+                    <br>
+                    注意，请不要下载过大的资源，目前这个站的月可用流量很低qwq</v-card-text>
+                <v-card-actions>
+                    <v-spacer></v-spacer>
+                    <v-btn @click="help = false" text>好</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
     </v-container>
 </template>
 
@@ -64,7 +82,8 @@
             snackbar: false,
             btnText: "开始",
             resetBtn: "重置状态",
-            errorMessage: ""
+            errorMessage: "",
+            help: false
         }),
         mounted() {
             this.$store.state.messageListeners.add(this.onMessage)

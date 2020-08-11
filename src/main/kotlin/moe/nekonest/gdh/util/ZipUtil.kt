@@ -1,4 +1,4 @@
-package moe.nekonest.githubproxy.util
+package moe.nekonest.gdh.util
 
 import java.io.*
 import java.util.zip.ZipEntry

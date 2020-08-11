@@ -1,4 +1,4 @@
-package moe.nekonest.githubproxy
+package moe.nekonest.gdh
 
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration

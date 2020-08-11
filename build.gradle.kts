@@ -7,9 +7,15 @@ plugins {
     kotlin("plugin.spring") version "1.3.72"
 }
 
+fun String.execute(): String {
+    val process = Runtime.getRuntime().exec(this)
+    return process.inputStream.buffered().readBytes().toString()
+}
+
 group = "moe.nekonest"
-version = "0.1.2"
-java.sourceCompatibility = JavaVersion.VERSION_1_8
+version = "0.1.${"git rev-list HEAD --count".execute()}"
+
+java.sourceCompatibility = JavaVersion.VERSION_11
 
 repositories {
     mavenCentral()
@@ -36,6 +42,6 @@ tasks.withType<Test> {
 tasks.withType<KotlinCompile> {
     kotlinOptions {
         freeCompilerArgs = listOf("-Xjsr305=strict")
-        jvmTarget = "1.8"
+        jvmTarget = "11"
     }
 }
