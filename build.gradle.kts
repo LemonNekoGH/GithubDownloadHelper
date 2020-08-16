@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.net.URI
 
 plugins {
     id("org.springframework.boot") version "2.3.0.RELEASE"
@@ -19,12 +20,17 @@ java.sourceCompatibility = JavaVersion.VERSION_11
 
 repositories {
     mavenCentral()
+    maven {
+        url = URI.create("https://oss.sonatype.org/content/repositories/snapshots/")
+    }
+    mavenLocal()
 }
 
 dependencies {
     implementation("org.springframework.session:spring-session:1.3.5.RELEASE")
     implementation("org.eclipse.jgit:org.eclipse.jgit:5.7.0.202003110725-r")
     implementation("org.springframework.boot:spring-boot-starter")
+    implementation("org.springframework.boot:spring-boot-starter-logging")
     implementation("org.springframework.boot:spring-boot-starter-websocket")
     implementation("org.springframework.boot:spring-boot-starter-web:2.3.0.RELEASE")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
@@ -33,6 +39,9 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test") {
         exclude(group = "org.junit.vintage", module = "junit-vintage-engine")
     }
+
+    implementation("moe.lemonneko:neko-logger:2.0.44-SNAPSHOT")
+    implementation("org.slf4j:slf4j-api:2.0.0-alpha1")
 }
 
 tasks.withType<Test> {

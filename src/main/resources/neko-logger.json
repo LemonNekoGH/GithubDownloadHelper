@@ -1,0 +1,12 @@
+{
+  "appenders": [
+    {
+      "name": "TerminalAppender",
+      "format": "%TIME %LEVEL [%PID-%THREAD] %CLASS_NAME.%METHOD_NAME: %MESSAGE",
+      "timeFormat": "default"
+    }
+  ],
+  "enableTrace": false,
+  "enableDebug": false,
+  "doNotAppendNewline": true
+}
