@@ -10,7 +10,7 @@ plugins {
 
 fun String.execute(): String {
     val process = Runtime.getRuntime().exec(this)
-    return process.inputStream.buffered().readBytes().toString()
+    return String(process.inputStream.buffered().readBytes()).trim()
 }
 
 group = "moe.nekonest"
