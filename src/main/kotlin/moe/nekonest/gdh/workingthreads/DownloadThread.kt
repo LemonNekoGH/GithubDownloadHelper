@@ -1,14 +1,20 @@
-package moe.nekonest.gdh.util
+package moe.nekonest.gdh.workingthreads
 
+import moe.nekonest.gdh.util.ARCHIVE_DIR
+import moe.nekonest.gdh.util.Size
+import moe.nekonest.gdh.util.sendJSON
 import org.apache.logging.log4j.LogManager
+import org.springframework.web.socket.WebSocketSession
 import java.io.File
 import java.io.FileNotFoundException
 import java.net.URL
 import java.net.UnknownHostException
-import javax.websocket.Session
 import kotlin.math.floor
 
-class DownloadThread(private val url: String,private val session: Session) : Thread("download-${session.id}") {
+class DownloadThread(
+        private val uri: String,
+        private val session: WebSocketSession
+) : Thread("Download-${session.id}") {
     private val progressChecker = Thread(this::check)
     private val logger = LogManager.getLogger()
     private var progress = 0
@@ -16,7 +22,7 @@ class DownloadThread(private val url: String,private val session: Session) : Thr
     private var downloadedSize = 0L
     private var stop = false
     private var interrupt = false
-    private val fileName = url.substring(url.lastIndexOf("/") + 1)
+    private val fileName = uri.substring(uri.lastIndexOf("/") + 1)
 
     override fun run() {
         try {
@@ -24,8 +30,8 @@ class DownloadThread(private val url: String,private val session: Session) : Thr
             if(!downloadDir.exists()){
                 downloadDir.mkdirs()
             }
-            val fullPathFile = File(downloadDir,fileName)
-            val url0 = URL(url)
+            val fullPathFile = File(downloadDir, fileName)
+            val url0 = URL(uri)
             val input = url0.openStream().buffered()
             fullSize = url0.openConnection().contentLengthLong
             logger.info("内容大小${sizeToString(fullSize)}")
@@ -81,20 +87,20 @@ class DownloadThread(private val url: String,private val session: Session) : Thr
     private fun sizeToString(size: Long): String{
         var convertedSize = 0.0
         val ending = when {
-            downloadedSize <= SIZE_KB -> {
+            downloadedSize <= Size.KB -> {
                 convertedSize = size.toDouble()
                 "B"
             }
-            downloadedSize <= SIZE_MB -> {
-                convertedSize = floor((size / SIZE_KB).toDouble())
+            downloadedSize <= Size.MB -> {
+                convertedSize = floor((size / Size.KB).toDouble())
                 "KB"
             }
-            downloadedSize <= SIZE_GB -> {
-                convertedSize = floor((size / SIZE_MB).toDouble())
+            downloadedSize <= Size.GB -> {
+                convertedSize = floor((size / Size.MB).toDouble())
                 "MB"
             }
-            downloadedSize <= SIZE_TB -> {
-                convertedSize = floor((size / SIZE_GB).toDouble())
+            downloadedSize <= Size.TB -> {
+                convertedSize = floor((size / Size.GB).toDouble())
                 "GB"
             }
             else -> {

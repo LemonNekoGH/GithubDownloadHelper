@@ -1,5 +1,7 @@
-package moe.nekonest.gdh.util
+package moe.nekonest.gdh.workingthreads
 
+import moe.nekonest.gdh.util.ARCHIVE_DIR
+import moe.nekonest.gdh.util.REPO_DIR
 import org.apache.logging.log4j.LogManager
 import java.io.File
 import java.nio.file.Files
