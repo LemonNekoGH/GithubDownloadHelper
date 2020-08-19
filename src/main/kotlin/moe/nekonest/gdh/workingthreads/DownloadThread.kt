@@ -4,16 +4,16 @@ import moe.nekonest.gdh.util.ARCHIVE_DIR
 import moe.nekonest.gdh.util.Size
 import moe.nekonest.gdh.util.sendJSON
 import org.apache.logging.log4j.LogManager
-import org.springframework.web.socket.WebSocketSession
 import java.io.File
 import java.io.FileNotFoundException
-import java.net.URL
+import java.net.URI
 import java.net.UnknownHostException
+import javax.websocket.Session
 import kotlin.math.floor
 
 class DownloadThread(
-        private val uri: String,
-        private val session: WebSocketSession
+        private val uri: URI,
+        private val session: Session
 ) : Thread("Download-${session.id}") {
     private val progressChecker = Thread(this::check)
     private val logger = LogManager.getLogger()
@@ -22,18 +22,17 @@ class DownloadThread(
     private var downloadedSize = 0L
     private var stop = false
     private var interrupt = false
-    private val fileName = uri.substring(uri.lastIndexOf("/") + 1)
+    private val fileName = uri.toString().substring(uri.toString().lastIndexOf("/") + 1)
 
     override fun run() {
         try {
             val downloadDir = File(ARCHIVE_DIR)
-            if(!downloadDir.exists()){
+            if (!downloadDir.exists()) {
                 downloadDir.mkdirs()
             }
             val fullPathFile = File(downloadDir, fileName)
-            val url0 = URL(uri)
-            val input = url0.openStream().buffered()
-            fullSize = url0.openConnection().contentLengthLong
+            val input = uri.toURL().openStream().buffered()
+            fullSize = uri.toURL().openConnection().contentLengthLong
             logger.info("内容大小${sizeToString(fullSize)}")
             val out = fullPathFile.outputStream().buffered()
             logger.info("开始下载")
@@ -43,7 +42,7 @@ class DownloadThread(
             )
             progressChecker.start()
             var i = input.read()
-            while (i != -1 && !interrupt){
+            while (i != -1 && !interrupt) {
                 out.write(i)
                 downloadedSize ++
                 i = input.read()

@@ -1,10 +1,10 @@
 package moe.nekonest.gdh.ws
 
-import org.springframework.web.socket.WebSocketSession
+import javax.websocket.Session
 
 interface WebSocketServer {
-    fun onOpen(session: WebSocketSession)
-    fun onClose(session: WebSocketSession)
-    fun onError(session: WebSocketSession, error: Throwable)
-    fun onMessage(session: WebSocketSession, message: String)
+    fun onOpen(session: Session)
+    fun onClose(session: Session)
+    fun onError(session: Session, error: Throwable)
+    fun onMessage(message: String, session: Session)
 }

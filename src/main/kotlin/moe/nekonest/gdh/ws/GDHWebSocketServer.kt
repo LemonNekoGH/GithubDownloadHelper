@@ -1,22 +1,20 @@
 package moe.nekonest.gdh.ws
 
 import moe.nekonest.gdh.util.sendJSON
+import moe.nekonest.gdh.workingthreads.CloneThread
+import moe.nekonest.gdh.workingthreads.DownloadThread
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
-import org.springframework.web.socket.WebSocketSession
 import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
-import javax.websocket.OnClose
-import javax.websocket.OnError
-import javax.websocket.OnMessage
-import javax.websocket.OnOpen
+import javax.websocket.*
 import javax.websocket.server.ServerEndpoint
 
 @ServerEndpoint("/websocket")
 @Component
 class GDHWebSocketServer : WebSocketServer {
     @OnOpen
-    override fun onOpen(session: WebSocketSession) {
+    override fun onOpen(session: Session) {
         sessionMap[session.id] = session
         onlineNumber++
         logger.info("ID是{}的用户已连接，当前使用人数{}", session.id, onlineNumber)
@@ -27,7 +25,7 @@ class GDHWebSocketServer : WebSocketServer {
     }
 
     @OnClose
-    override fun onClose(session: WebSocketSession) {
+    override fun onClose(session: Session) {
         sessionMap.remove(session.id)
         onlineNumber--
         logger.info("ID是{}的用户已断开连接，当前使用人数{}", session.id, onlineNumber)
@@ -37,12 +35,12 @@ class GDHWebSocketServer : WebSocketServer {
     }
 
     @OnError
-    override fun onError(session: WebSocketSession, error: Throwable) {
+    override fun onError(session: Session, error: Throwable) {
         logger.error("ID是${session.id}的用户的连接状态异常", error)
     }
 
     @OnMessage
-    override fun onMessage(session: WebSocketSession, message: String) {
+    override fun onMessage(message: String, session: Session) {
         logger.info("ID是${session.id}的用户发来了请求，正在解析请求")
         session.sendJSON("status" to "parsing")
 
@@ -66,12 +64,12 @@ class GDHWebSocketServer : WebSocketServer {
         }
     }
 
-    private fun doDownloadFile(uri: URI, session: WebSocketSession) {
-
+    private fun doDownloadFile(uri: URI, session: Session) {
+        DownloadThread(uri, session).start()
     }
 
-    private fun doCloneRepository(uri: String, session: WebSocketSession) {
-
+    private fun doCloneRepository(uri: String, session: Session) {
+        CloneThread(uri, session).start()
     }
 
     companion object {
@@ -82,7 +80,7 @@ class GDHWebSocketServer : WebSocketServer {
         private var onlineNumber = 0
 
         @JvmStatic
-        private val sessionMap = ConcurrentHashMap<String, WebSocketSession>()
+        private val sessionMap = ConcurrentHashMap<String, Session>()
 
         @JvmStatic
         private val releaseRegex = "https://github.com/\\w+/\\w+/releases/download/[\\w\\W]+/[\\w\\W]+".toRegex()

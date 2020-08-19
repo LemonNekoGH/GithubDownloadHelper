@@ -9,12 +9,12 @@ import org.eclipse.jgit.lib.BranchConfig
 import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.lib.RepositoryBuilder
 import org.slf4j.LoggerFactory
-import org.springframework.web.socket.WebSocketSession
 import java.io.File
+import javax.websocket.Session
 
 class CloneThread(
         private val uri: String,
-        private val session: WebSocketSession
+        private val session: Session
 ) : Thread("CloneThread-${session.id}") {
     private val logger = LoggerFactory.getLogger(this::class.java)
     var output = ""
