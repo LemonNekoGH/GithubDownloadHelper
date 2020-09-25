@@ -14,16 +14,18 @@ fun String.execute(): String {
 }
 
 group = "moe.nekonest"
-version = "0.1.${"git rev-list HEAD --count".execute()}"
+version = "0.2.${"git rev-list HEAD --count".execute()}"
 
 java.sourceCompatibility = JavaVersion.VERSION_11
 
 repositories {
-    mavenCentral()
+    mavenLocal()
     maven {
         url = URI.create("https://oss.sonatype.org/content/repositories/snapshots/")
     }
-    mavenLocal()
+    maven {
+        url = URI.create("https://maven.aliyun.com/repository/public")
+    }
 }
 
 dependencies {
@@ -40,8 +42,10 @@ dependencies {
         exclude(group = "org.junit.vintage", module = "junit-vintage-engine")
     }
 
-    implementation("moe.lemonneko:neko-logger:2.0.44-SNAPSHOT")
+    implementation("moe.lemonneko:neko-logger-common:2.0.47-SNAPSHOT")
     implementation("org.slf4j:slf4j-api:2.0.0-alpha1")
+
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.9")
 }
 
 tasks.withType<Test> {

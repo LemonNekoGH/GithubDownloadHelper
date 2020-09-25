@@ -6,6 +6,7 @@ import org.springframework.boot.SpringApplication
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.core.env.Environment
 import java.io.PrintStream
+
 @SpringBootApplication
 class GDHApplication {
     private val logger = LogManager.getLogger()
@@ -30,7 +31,7 @@ class GDHApplication {
         @JvmStatic
         fun main(args: Array<String>) {
             val gdhApplication = SpringApplication(GDHApplication::class.java)
-            gdhApplication.setBanner(GDHApplication.GDHBanner)
+            gdhApplication.setBanner(GDHBanner)
             gdhApplication.run(*args)
         }
     }

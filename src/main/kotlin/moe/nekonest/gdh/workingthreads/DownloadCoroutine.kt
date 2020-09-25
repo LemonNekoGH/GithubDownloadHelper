@@ -1,5 +1,8 @@
 package moe.nekonest.gdh.workingthreads
 
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import moe.nekonest.gdh.util.ARCHIVE_DIR
 import moe.nekonest.gdh.util.Size
 import moe.nekonest.gdh.util.sendJSON
@@ -11,11 +14,10 @@ import java.net.UnknownHostException
 import javax.websocket.Session
 import kotlin.math.floor
 
-class DownloadThread(
+class DownloadCoroutine(
         private val uri: URI,
         private val session: Session
-) : Thread("Download-${session.id}") {
-    private val progressChecker = Thread(this::check)
+) : WorkingCoroutine {
     private val logger = LogManager.getLogger()
     private var progress = 0
     private var fullSize = 0L
@@ -24,7 +26,7 @@ class DownloadThread(
     private var interrupt = false
     private val fileName = uri.toString().substring(uri.toString().lastIndexOf("/") + 1)
 
-    override fun run() {
+    override suspend fun run() {
         try {
             val downloadDir = File(ARCHIVE_DIR)
             if (!downloadDir.exists()) {
@@ -40,11 +42,13 @@ class DownloadThread(
                     "status" to "downloading",
                     "text" to "0"
             )
-            progressChecker.start()
+            GlobalScope.launch {
+                check()
+            }
             var i = input.read()
             while (i != -1 && !interrupt) {
                 out.write(i)
-                downloadedSize ++
+                downloadedSize++
                 i = input.read()
             }
             input.close()
@@ -109,8 +113,8 @@ class DownloadThread(
         return "$convertedSize$ending"
     }
 
-    private fun check(){
-        while (!stop){
+    private suspend fun check() {
+        while (!stop) {
             progress = ((downloadedSize.toDouble() / fullSize) * 100).toInt()
             logger.info("已下载${sizeToString(downloadedSize)} / ${sizeToString(fullSize)}")
             logger.info("下载进度$progress%")
@@ -118,7 +122,7 @@ class DownloadThread(
                     "status" to "downloading",
                     "text" to "$progress"
             )
-            sleep(1000)
+            delay(1000)
         }
     }
 }

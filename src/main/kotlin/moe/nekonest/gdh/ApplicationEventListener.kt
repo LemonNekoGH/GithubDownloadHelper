@@ -18,6 +18,5 @@ class ApplicationEventListener : ApplicationListener<SpringApplicationEvent> {
 
     private fun onAppReady(event: ApplicationReadyEvent) {
         logger.info("Spring Boot核心已启动")
-
     }
 }
