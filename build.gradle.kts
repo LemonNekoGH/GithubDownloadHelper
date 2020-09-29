@@ -58,9 +58,3 @@ tasks.withType<KotlinCompile> {
         jvmTarget = "11"
     }
 }
-
-tasks.getByName("bootJar").doLast("generateDockerfile") {
-    val content = file("Dockerfile.template")
-            .readText().replace("%version".toRegex(), project.version as String)
-    file("Dockerfile").writeText(content)
-}
