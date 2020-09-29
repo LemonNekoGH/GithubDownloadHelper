@@ -1,18 +1,14 @@
 package moe.nekonest.gdh.ws
 
 import com.alibaba.fastjson.JSON
-import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import moe.nekonest.gdh.util.Status
-import moe.nekonest.gdh.util.sendJSON
-import moe.nekonest.gdh.util.sendStatus
-import moe.nekonest.gdh.workingthreads.CloneCoroutine
-import moe.nekonest.gdh.workingthreads.DownloadCoroutine
+import moe.nekonest.gdh.util.*
 import org.eclipse.jgit.api.errors.TransportException
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
+import java.io.EOFException
 import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
 import javax.websocket.*
@@ -21,11 +17,10 @@ import javax.websocket.server.ServerEndpoint
 @ServerEndpoint("/websocket")
 @Component
 class GDHWebSocketServer : WebSocketServer {
-    private val jobMap = HashMap<Session, Job>()
-
     @OnOpen
     override fun onOpen(session: Session) {
         sessionMap[session.id] = session
+        session.attr["connectedTime"] = System.currentTimeMillis()
         onlineNumber++
         logger.info("ID是{}的用户已连接，当前使用人数{}", session.id, onlineNumber)
         session.sendJSON("status" to "connected")
@@ -36,9 +31,10 @@ class GDHWebSocketServer : WebSocketServer {
 
     @OnClose
     override fun onClose(session: Session) {
+        val connectedTime = System.currentTimeMillis() - session.attr["connectedTime"] as Long
         sessionMap.remove(session.id)
         onlineNumber--
-        logger.info("ID是{}的用户已断开连接，当前使用人数{}", session.id, onlineNumber)
+        logger.info("ID是{}的用户已断开连接，在线时长{}，当前使用人数{}", session.id, connectedTime, onlineNumber)
         sessionMap.values.forEach {
             it.sendJSON("oneline" to onlineNumber.toString())
         }
@@ -46,7 +42,11 @@ class GDHWebSocketServer : WebSocketServer {
 
     @OnError
     override fun onError(session: Session, error: Throwable) {
-        logger.error("ID是${session.id}的用户的连接状态异常", error)
+        if (error is EOFException) {
+            logger.error("ID是${session.id}的用户异常断开")
+        } else {
+            logger.error("ID是${session.id}的用户的连接状态异常", error)
+        }
     }
 
     @OnMessage
@@ -96,32 +96,45 @@ class GDHWebSocketServer : WebSocketServer {
 
     private fun doDownloadFile(uri: URI, session: Session) {
         val job = GlobalScope.launch {
-            DownloadCoroutine(uri, session).run()
+            newDownloadJob(uri).onProgress {
+                session.sendStatus(Status.DOWNLOADING, it.toString())
+            }.onStart {
+                session.sendStatus(Status.DOWNLOADING)
+            }.onComplete {
+                session.sendStatus(Status.COMPLETED, it)
+            }.onError {
+                cancel(it.message ?: "未知错误", it)
+            }.start()
         }
-        jobMap[session] = job
+        session.attr["job"] = job
     }
 
     private fun doCloneRepository(uri: String, session: Session) {
-        val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
-            when (throwable) {
-                is TransportException -> {
-                    logger.error("仓库不存在")
-                    session.sendJSON(
-                            "status" to "error",
-                            "text" to "仓库不存在"
-                    )
-                    logger.error("已提示用户并取消任务")
+        val job = GlobalScope.launch {
+            newCloneJob(uri).onCompressing {
+                session.sendStatus(Status.COMPRESSING)
+            }.onStart {
+                session.sendStatus(Status.CHECKING_OUT)
+            }.onComplete {
+                session.sendStatus(Status.COMPLETED, it)
+            }.onError {
+                when (it) {
+                    is TransportException -> {
+                        logger.error("仓库不存在")
+                        session.sendJSON(
+                                "status" to "error",
+                                "text" to "仓库不存在"
+                        )
+                        logger.error("已提示用户并取消任务")
+                    }
+                    else -> {
+                        logger.error(it.message, it)
+                    }
                 }
-                else -> {
-                    logger.error(throwable.message, throwable)
-                }
-            }
+                cancel(it.message ?: "未知错误", it)
+            }.start()
         }
-        val job = GlobalScope.launch(exceptionHandler) {
-            logger.info("任务已启动")
-            CloneCoroutine(uri, session).run()
-        }
-        jobMap[session] = job
+        session.attr["job"] = job
     }
 
     companion object {
@@ -135,16 +148,16 @@ class GDHWebSocketServer : WebSocketServer {
         private val sessionMap = ConcurrentHashMap<String, Session>()
 
         @JvmStatic
-        private val releaseRegex = "https://github.com/.+/.+/releases/download/.+/.+".toRegex()
+        private val releaseRegex = "https://github.com/[a-zA-Z0-9]+/[a-zA-Z0-9]+/releases/download/.+/.+".toRegex()
 
         @JvmStatic
-        private val codeLoadRegex = "https://github.com/.+/.+/archive/.+".toRegex()
+        private val codeLoadRegex = "https://github.com/[a-zA-Z0-9]+/[a-zA-Z0-9]+/archive/.+".toRegex()
 
         @JvmStatic
         private val rawContentRegex = "https://raw.githubusercontent.com/.+".toRegex()
 
         @JvmStatic
-        private val repositoryRegex = "https://github.com/.+.git".toRegex()
+        private val repositoryRegex = "https://github.com/[a-zA-Z0-9]+/[a-zA-Z0-9]+".toRegex()
 
         @JvmStatic
         private val recaptchaRegex = "token:.+".toRegex()

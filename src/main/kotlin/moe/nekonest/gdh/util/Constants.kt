@@ -20,4 +20,5 @@ object Time {
     const val HOUR = 60 * MINUTE
     const val DAY = 24 * HOUR
     const val WEEK = 7 * DAY
+    const val YEAR = 365 * DAY
 }

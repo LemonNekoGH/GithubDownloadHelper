@@ -5,89 +5,59 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import moe.nekonest.gdh.util.ARCHIVE_DIR
 import moe.nekonest.gdh.util.Size
-import moe.nekonest.gdh.util.sendJSON
 import org.apache.logging.log4j.LogManager
 import java.io.File
-import java.io.FileNotFoundException
 import java.net.URI
-import java.net.UnknownHostException
-import javax.websocket.Session
 import kotlin.math.floor
 
-class DownloadCoroutine(
-        private val uri: URI,
-        private val session: Session
-) : WorkingCoroutine {
+class DownloadCoroutine(private val uri: URI) : WorkingCoroutine() {
     private val logger = LogManager.getLogger()
     private var progress = 0
     private var fullSize = 0L
     private var downloadedSize = 0L
     private var stop = false
-    private var interrupt = false
     private val fileName = uri.toString().substring(uri.toString().lastIndexOf("/") + 1)
 
+    override lateinit var onStart: () -> Unit
+    override lateinit var onComplete: (String) -> Unit
+    override lateinit var onError: (Exception) -> Unit
+    private lateinit var onProgress: (Int) -> Unit
+
+    fun onProgress(onProgress: (Int) -> Unit): DownloadCoroutine {
+        this.onProgress = onProgress
+        return this
+    }
+
     override suspend fun run() {
-        try {
-            val downloadDir = File(ARCHIVE_DIR)
-            if (!downloadDir.exists()) {
-                downloadDir.mkdirs()
-            }
-            val fullPathFile = File(downloadDir, fileName)
-            val input = uri.toURL().openStream().buffered()
-            fullSize = uri.toURL().openConnection().contentLengthLong
-            logger.info("内容大小${sizeToString(fullSize)}")
-            val out = fullPathFile.outputStream().buffered()
-            logger.info("开始下载")
-            session.sendJSON(
-                    "status" to "downloading",
-                    "text" to "0"
-            )
-            GlobalScope.launch {
-                check()
-            }
-            var i = input.read()
-            while (i != -1 && !interrupt) {
-                out.write(i)
-                downloadedSize++
-                i = input.read()
-            }
-            input.close()
-            out.flush()
-            out.close()
-            stop = true
-            if (!interrupt){
-                logger.info("下载完成")
-                session.sendJSON(
-                        "status" to "completed",
-                        "text" to fileName
-                )
-            }
-        }catch (e: IllegalStateException){
-            logger.info("用户已离开")
-        }catch (e: UnknownHostException){
-            logger.info("连接失败")
-            session.sendJSON(
-                    "status" to "error",
-                    "text" to "连接失败，请重试"
-            )
-        }catch (e: FileNotFoundException){
-            logger.info("没找到这个文件")
-            session.sendJSON(
-                    "status" to "error",
-                    "text" to "文件解析失败，请确认链接是否正确"
-            )
+        val downloadDir = File(ARCHIVE_DIR)
+        if (!downloadDir.exists()) {
+            downloadDir.mkdirs()
         }
-    }
-
-    fun interrupt0(){
-        interrupt = true
+        val fullPathFile = File(downloadDir, fileName)
+        val input = uri.toURL().openStream().buffered()
+        fullSize = uri.toURL().openConnection().contentLengthLong
+        logger.info("内容大小${sizeToString(fullSize)}")
+        val out = fullPathFile.outputStream().buffered()
+        logger.info("开始下载")
+        onStart()
+        GlobalScope.launch {
+            check()
+        }
+        var i = input.read()
+        while (i != -1) {
+            out.write(i)
+            downloadedSize++
+            i = input.read()
+        }
+        input.close()
+        out.flush()
+        out.close()
         stop = true
-        logger.info("中断下载")
-        val fullPathFile = File(ARCHIVE_DIR,fileName)
-        fullPathFile.delete()
+        logger.info("下载完成")
+        onComplete(fileName)
     }
 
-    private fun sizeToString(size: Long): String{
+    private fun sizeToString(size: Long): String {
         var convertedSize = 0.0
         val ending = when {
             downloadedSize <= Size.KB -> {
@@ -118,11 +88,8 @@ class DownloadCoroutine(
             progress = ((downloadedSize.toDouble() / fullSize) * 100).toInt()
             logger.info("已下载${sizeToString(downloadedSize)} / ${sizeToString(fullSize)}")
             logger.info("下载进度$progress%")
-            session.sendJSON(
-                    "status" to "downloading",
-                    "text" to "$progress"
-            )
-            delay(1000)
+            onProgress(progress)
+            delay(500)
         }
     }
 }

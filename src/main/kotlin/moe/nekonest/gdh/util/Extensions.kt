@@ -1,17 +1,11 @@
-@file:Suppress("UNCHECKED_CAST")
-
 package moe.nekonest.gdh.util
 
 import com.alibaba.fastjson.JSONObject
-import java.io.OutputStream
+import moe.nekonest.gdh.workingthreads.CloneCoroutine
+import moe.nekonest.gdh.workingthreads.DownloadCoroutine
+import java.net.URI
+import java.util.*
 import javax.websocket.Session
-
-operator fun String.compareTo(outputStream: OutputStream): Int {
-    val buffer = outputStream.buffered()
-    buffer.write(toByteArray())
-    buffer.flush()
-    return 0
-}
 
 fun Session.sendJSON(vararg pairs: Pair<String, String>) {
     val jsonObject = JSONObject()
@@ -31,6 +25,12 @@ fun Session.sendStatus(status: Status, text: String? = null) {
         )
     }
 }
+
+val Session.attr: Properties
+    get() = Properties()
+
+fun newDownloadJob(uri: URI) = DownloadCoroutine(uri)
+fun newCloneJob(uri: String) = CloneCoroutine(uri)
 
 enum class Status(val text: String) {
     CHECKING("checking"),
