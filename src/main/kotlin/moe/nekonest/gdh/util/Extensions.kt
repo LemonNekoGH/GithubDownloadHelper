@@ -4,7 +4,6 @@ import com.alibaba.fastjson.JSONObject
 import moe.nekonest.gdh.workingthreads.CloneCoroutine
 import moe.nekonest.gdh.workingthreads.DownloadCoroutine
 import java.net.URI
-import java.util.*
 import javax.websocket.Session
 
 fun Session.sendJSON(vararg pairs: Pair<String, String>) {
@@ -25,9 +24,6 @@ fun Session.sendStatus(status: Status, text: String? = null) {
         )
     }
 }
-
-val Session.attr: Properties
-    get() = Properties()
 
 fun newDownloadJob(uri: URI) = DownloadCoroutine(uri)
 fun newCloneJob(uri: String) = CloneCoroutine(uri)

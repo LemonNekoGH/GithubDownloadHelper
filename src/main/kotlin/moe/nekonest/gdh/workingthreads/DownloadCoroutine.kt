@@ -20,13 +20,8 @@ class DownloadCoroutine(private val uri: URI) : WorkingCoroutine() {
 
     override lateinit var onStart: () -> Unit
     override lateinit var onComplete: (String) -> Unit
-    override lateinit var onError: (Exception) -> Unit
-    private lateinit var onProgress: (Int) -> Unit
-
-    fun onProgress(onProgress: (Int) -> Unit): DownloadCoroutine {
-        this.onProgress = onProgress
-        return this
-    }
+    override lateinit var onError: WorkingCoroutine.(Exception) -> Unit
+    override lateinit var onProgress: (Int) -> Unit
 
     override suspend fun run() {
         val downloadDir = File(ARCHIVE_DIR)

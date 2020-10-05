@@ -30,7 +30,7 @@ repositories {
 
 dependencies {
     implementation("org.springframework.session:spring-session:1.3.5.RELEASE")
-    implementation("org.eclipse.jgit:org.eclipse.jgit:5.7.0.202003110725-r")
+    implementation("moe.lemonneko:neko-git-common:1.0.7-SNAPSHOT")
     implementation("org.springframework.boot:spring-boot-starter")
     implementation("org.springframework.boot:spring-boot-starter-logging")
     implementation("org.springframework.boot:spring-boot-starter-websocket")

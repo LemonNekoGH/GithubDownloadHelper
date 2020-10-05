@@ -2,15 +2,15 @@ package moe.nekonest.gdh.ws
 
 import com.alibaba.fastjson.JSON
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import moe.nekonest.gdh.util.*
-import org.eclipse.jgit.api.errors.TransportException
+import moe.nekonest.gdh.workingthreads.CloneCoroutine
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.io.EOFException
 import java.net.URI
-import java.util.concurrent.ConcurrentHashMap
 import javax.websocket.*
 import javax.websocket.server.ServerEndpoint
 
@@ -19,24 +19,33 @@ import javax.websocket.server.ServerEndpoint
 class GDHWebSocketServer : WebSocketServer {
     @OnOpen
     override fun onOpen(session: Session) {
-        sessionMap[session.id] = session
-        session.attr["connectedTime"] = System.currentTimeMillis()
-        onlineNumber++
-        logger.info("ID是{}的用户已连接，当前使用人数{}", session.id, onlineNumber)
+        SessionMap.register(session)
+        SessionMap.setValue(session, "id", session.id)
+        SessionMap.setValue(session, "connectedTime", System.currentTimeMillis())
+        logger.info("ID是{}的用户已连接，当前使用人数{}", session.id, SessionMap.onlineNumber())
         session.sendJSON("status" to "connected")
-        sessionMap.values.forEach {
-            it.sendJSON("online" to onlineNumber.toString())
+        SessionMap.sessions().forEach {
+            it.sendJSON("online" to SessionMap.onlineNumber())
         }
     }
 
     @OnClose
     override fun onClose(session: Session) {
-        val connectedTime = System.currentTimeMillis() - session.attr["connectedTime"] as Long
-        sessionMap.remove(session.id)
-        onlineNumber--
-        logger.info("ID是{}的用户已断开连接，在线时长{}，当前使用人数{}", session.id, connectedTime, onlineNumber)
-        sessionMap.values.forEach {
-            it.sendJSON("oneline" to onlineNumber.toString())
+        val connectedTime = System.currentTimeMillis() - SessionMap.getValue(session, "connectedTime") as Long
+        val job = SessionMap.getValue(session, "job")
+        if (job is Job) {
+            job.cancel()
+        }
+
+        val coroutine = SessionMap.getValue(session, "coroutine")
+        if (coroutine is CloneCoroutine) {
+            coroutine.destroy()
+        }
+
+        SessionMap.unregister(session)
+        logger.info("ID是{}的用户已断开连接，在线时长{}，当前使用人数{}", session.id, connectedTime, SessionMap.onlineNumber())
+        SessionMap.sessions().forEach {
+            it.sendJSON("oneline" to SessionMap.onlineNumber())
         }
     }
 
@@ -80,7 +89,6 @@ class GDHWebSocketServer : WebSocketServer {
                         URI.create("https://www.recaptcha.net/recaptcha/api/siteverify?secret=$secret&response=$response")
                                 .toURL().openConnection()
                 val ret = String(connection.getInputStream().readAllBytes())
-                logger.info("返回：$ret")
                 val retObject = JSON.parseObject(ret)
                 val success = retObject.getBoolean("success")
                 if (success != null && success) {
@@ -96,7 +104,7 @@ class GDHWebSocketServer : WebSocketServer {
 
     private fun doDownloadFile(uri: URI, session: Session) {
         val job = GlobalScope.launch {
-            newDownloadJob(uri).onProgress {
+            val coroutine = newDownloadJob(uri).onProgress {
                 session.sendStatus(Status.DOWNLOADING, it.toString())
             }.onStart {
                 session.sendStatus(Status.DOWNLOADING)
@@ -104,37 +112,30 @@ class GDHWebSocketServer : WebSocketServer {
                 session.sendStatus(Status.COMPLETED, it)
             }.onError {
                 cancel(it.message ?: "未知错误", it)
-            }.start()
+            }
+            SessionMap.setValue(session, "coroutine", coroutine)
+            coroutine.start()
         }
-        session.attr["job"] = job
+        SessionMap.setValue(session, "job", job)
     }
 
     private fun doCloneRepository(uri: String, session: Session) {
-        val job = GlobalScope.launch {
-            newCloneJob(uri).onCompressing {
-                session.sendStatus(Status.COMPRESSING)
-            }.onStart {
-                session.sendStatus(Status.CHECKING_OUT)
-            }.onComplete {
-                session.sendStatus(Status.COMPLETED, it)
-            }.onError {
-                when (it) {
-                    is TransportException -> {
-                        logger.error("仓库不存在")
-                        session.sendJSON(
-                                "status" to "error",
-                                "text" to "仓库不存在"
-                        )
-                        logger.error("已提示用户并取消任务")
-                    }
-                    else -> {
-                        logger.error(it.message, it)
-                    }
-                }
-                cancel(it.message ?: "未知错误", it)
-            }.start()
+        val coroutine = newCloneJob(uri).onCompressing {
+            session.sendStatus(Status.COMPRESSING)
+        }.onStart {
+            session.sendStatus(Status.CHECKING_OUT)
+        }.onComplete {
+            session.sendStatus(Status.COMPLETED, it)
+        }.onProgress {
+            logger.info("clone进度$it%")
+            session.sendStatus(Status.CHECKING_OUT, it.toString())
+        }.onError {
+            logger.error(it.message)
+            cancel()
         }
-        session.attr["job"] = job
+        SessionMap.setValue(session, "coroutine", coroutine)
+        val job = coroutine.start()
+        SessionMap.setValue(session, "job", job)
     }
 
     companion object {
@@ -142,22 +143,16 @@ class GDHWebSocketServer : WebSocketServer {
         private val logger = LoggerFactory.getLogger(this::class.java)
 
         @JvmStatic
-        private var onlineNumber = 0
+        private val releaseRegex = "https://github.com/[a-zA-Z0-9]+/[a-zA-Z0-9\\-]+/releases/download/.+/.+".toRegex()
 
         @JvmStatic
-        private val sessionMap = ConcurrentHashMap<String, Session>()
-
-        @JvmStatic
-        private val releaseRegex = "https://github.com/[a-zA-Z0-9]+/[a-zA-Z0-9]+/releases/download/.+/.+".toRegex()
-
-        @JvmStatic
-        private val codeLoadRegex = "https://github.com/[a-zA-Z0-9]+/[a-zA-Z0-9]+/archive/.+".toRegex()
+        private val codeLoadRegex = "https://github.com/[a-zA-Z0-9]+/[a-zA-Z0-9\\-]+/archive/.+".toRegex()
 
         @JvmStatic
         private val rawContentRegex = "https://raw.githubusercontent.com/.+".toRegex()
 
         @JvmStatic
-        private val repositoryRegex = "https://github.com/[a-zA-Z0-9]+/[a-zA-Z0-9]+".toRegex()
+        private val repositoryRegex = "https://github.com/[a-zA-Z0-9]+/[a-zA-Z0-9\\-]+(.git)?".toRegex()
 
         @JvmStatic
         private val recaptchaRegex = "token:.+".toRegex()
