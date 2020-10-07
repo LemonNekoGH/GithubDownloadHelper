@@ -1,0 +1,12 @@
+{
+  "appenders": [
+    {
+      "name": "TerminalAppender",
+      "format": "default",
+      "timeFormat": "default"
+    }
+  ],
+  "doNotAppendNewline": true,
+  "enableDebug": false,
+  "enableTrace": false
+}
