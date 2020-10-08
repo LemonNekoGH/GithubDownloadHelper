@@ -16,14 +16,16 @@ import io.ktor.websocket.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.launch
 import moe.lemonneko.nekogit.NekoGit
-import moe.lemonneko.nekogit.cmds.CloneCommand
+import moe.lemonneko.nekogit.cmds.GitClone
 import org.slf4j.LoggerFactory
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.URL
 import java.util.zip.ZipEntry
+import java.util.zip.ZipException
 import java.util.zip.ZipOutputStream
 import kotlin.collections.set
 import kotlin.concurrent.thread
@@ -32,8 +34,8 @@ import kotlin.math.floor
 private val logger = LoggerFactory.getLogger("GDHApplicationKt")
 private val sessions = ArrayList<DefaultWebSocketServerSession>()
 
-private val repoDir = System.getProperty("user.home") + File.separator + "repos"
-private val archiveDir = System.getProperty("user.home") + File.separator + "archives"
+private val repoDir = File(System.getProperty("user.home") + File.separator + "repos")
+private val archiveDir = File(System.getProperty("user.home") + File.separator + "archives")
 
 private val httpClient = HttpClient(OkHttp)
 
@@ -71,43 +73,8 @@ fun Routing.webSocket() {
             for (frame in incoming) {
                 count++
                 logger.info("received message count: $count")
-                if (frame is Frame.Text) {
-                    val text = frame.readText()
-                    logger.info("received message: $text")
-                    try {
-                        sendStatus(Status.PARSING)
-                        val jsonObject = JSONObject.parseObject(text)
-                        val request = jsonObject.getString("request")
-                            ?: throw BadRequestException("request format error, request not found")
-                        val url = jsonObject.getString("url")
-                        val token = jsonObject.getString("token")
-                        when (request) {
-                            "check" -> {
-                                token ?: throw BadRequestException("request format error, token not found")
-                                doCheck(token)
-                            }
-                            "download" -> {
-                                url ?: throw BadRequestException("request format error, url not found")
-                                doDownload(url)
-                            }
-                            "clone" -> {
-                                url ?: throw BadRequestException("request format error, url not found")
-                                doClone(url)
-                            }
-                            else -> throw BadRequestException("request method error: $request")
-                        }
-                    } catch (e: JSONException) {
-                        logger.error("error: ${e.message}", e)
-                        sendStatus(Status.ERROR, "请求不是JSON，这是严重错误，请联系柠喵")
-                    } catch (e: NullPointerException) {
-                        logger.error("error: ${e.message}", e)
-                        sendStatus(Status.ERROR, "请求格式错误，这是严重错误，请联系柠喵")
-                    } catch (e: SocketTimeoutException) {
-                        logger.error("error: ${e.message}", e)
-                        sendStatus(Status.ERROR, "Github没有响应，请重试")
-                    }
-                }
-                logger.info("process done")
+                processMessage(frame)
+                logger.info("message process done")
             }
         } catch (e: ClosedReceiveChannelException) {
             logger.info("session closed with: ${closeReason.await()}")
@@ -125,47 +92,97 @@ fun Routing.webSocket() {
     }
 }
 
-private fun DefaultWebSocketServerSession.doCheck(token: String) {
-    launch {
-        val request =
-            httpClient.post<String>("https://www.recaptcha.net/recaptcha/api/siteverify?secret=6LdjY9AZAAAAAFYOcL3znvRS08uQPFCopYGRjW1m&response=$token")
-        val jsonObject = JSONObject.parseObject(request)
-        val success = jsonObject.getBoolean("success")
-        if (success) {
-            sendStatus(Status.CHECKING, "success")
+private suspend fun DefaultWebSocketServerSession.processMessage(frame: Frame) {
+    if (frame is Frame.Text) {
+        val text = frame.readText()
+        logger.info("received message: $text")
+        try {
+            sendStatus(Status.PARSING)
+            val jsonObject = JSONObject.parseObject(text)
+            val request = jsonObject.getString("request")
+                ?: throw BadRequestException("request format error, request not found")
+            val url = jsonObject.getString("url")
+            val token = jsonObject.getString("token")
+            when (request) {
+                "check" -> {
+                    token ?: throw BadRequestException("request format error, token not found")
+                    doCheck(token)
+                }
+                "download" -> {
+                    url ?: throw BadRequestException("request format error, url not found")
+                    val fileName = url.substring(url.lastIndexOf('/') + 1)
+                    sendStatus(Status.DOWNLOADING, "0")
+                    doDownload(url) {
+                        sendStatus(Status.DOWNLOADING, it.toString())
+                        logger.info("progress: $it")
+                    }
+                    sendStatus(Status.COMPLETED, fileName)
+                    logger.info("done")
+                }
+                "clone" -> {
+                    url ?: throw BadRequestException("request format error, url not found")
+                    doClone(url, this::onCloneProgress) {
+                        throw it
+                    }
+                }
+                else -> throw BadRequestException("request method error: $request")
+            }
+        } catch (e: JSONException) {
+            logger.error("error: ${e.message}", e)
+            sendStatus(Status.ERROR, "请求不是JSON，这是严重错误，请联系柠喵")
+        } catch (e: NullPointerException) {
+            logger.error("error: ${e.message}", e)
+            sendStatus(Status.ERROR, "请求格式错误，这是严重错误，请联系柠喵")
+        } catch (e: SocketTimeoutException) {
+            logger.error("error: ${e.message}", e)
+            sendStatus(Status.ERROR, "Github没有响应，请重试")
+        } catch (e: Throwable) {
+            logger.error("error: ${e.message}", e)
         }
     }
 }
 
-private suspend fun DefaultWebSocketServerSession.doDownload(url: String) {
+private suspend fun DefaultWebSocketServerSession.onCloneProgress(progress: Int, repo: File) {
+    if (progress != 100) {
+        sendStatus(Status.CHECKING_OUT, progress.toString())
+    } else {
+        val output = doZip(repo)
+        sendStatus(Status.COMPLETED, output)
+        repo.delete()
+    }
+}
+
+private suspend fun DefaultWebSocketServerSession.doCheck(token: String) {
+    val request =
+        httpClient.post<String>("https://www.recaptcha.net/recaptcha/api/siteverify?secret=6LdjY9AZAAAAAFYOcL3znvRS08uQPFCopYGRjW1m&response=$token")
+    val jsonObject = JSONObject.parseObject(request)
+    val success = jsonObject.getBoolean("success")
+    if (success) {
+        sendStatus(Status.CHECKING, "success")
+    }
+}
+
+private fun DefaultWebSocketServerSession.doDownload(url: String, progress: suspend (Int) -> Unit) {
     logger.info("do download, url=$url")
     val fileName = url.substring(url.lastIndexOf('/') + 1)
     logger.info("file name: $fileName")
     val file = File(archiveDir, fileName)
 
     thread {
-        launch {
-            sendStatus(Status.DOWNLOADING, "0")
-        }
-        saveFileFromURL(url, file) {
-            launch {
-                sendStatus(Status.DOWNLOADING, it.toString())
-                logger.info("progress: $it")
-            }
-        }
-        launch {
-            sendStatus(Status.COMPLETED, fileName)
-            logger.info("done")
-        }
+        saveFileFromURL(url, file, progress)
     }
 }
 
-private fun saveFileFromURL(url: String, file: File, progress: (Int) -> Unit) {
+private fun DefaultWebSocketServerSession.saveFileFromURL(url: String, file: File, progress: suspend (Int) -> Unit) {
     val connection = URL(url).openConnection()
     connection.connectTimeout = 5000
     val contentLength = connection.contentLength.toFloat()
     logger.info("connected, content length: $contentLength")
     var i = 0F
+
+    if (!archiveDir.exists()) {
+        archiveDir.mkdirs()
+    }
 
     if (!file.exists()) {
         file.createNewFile()
@@ -180,7 +197,9 @@ private fun saveFileFromURL(url: String, file: File, progress: (Int) -> Unit) {
         out.write(byte)
         i++
         if (contentLength > 0 && (i % (1024 * 64)) == 0F) {
-            progress(floor((i / contentLength) * 100).toInt())
+            launch {
+                progress(floor((i / contentLength) * 100).toInt())
+            }
         }
     } while (byte != -1)
 
@@ -189,7 +208,11 @@ private fun saveFileFromURL(url: String, file: File, progress: (Int) -> Unit) {
     input.close()
 }
 
-private fun DefaultWebSocketServerSession.doClone(url: String) {
+private fun DefaultWebSocketServerSession.doClone(
+    url: String,
+    onProgress: suspend (Int, File) -> Unit,
+    onError: (Throwable) -> Unit
+) {
     logger.info("do clone, url=$url")
     launch {
         sendStatus(Status.CHECKING_OUT, "0")
@@ -198,34 +221,35 @@ private fun DefaultWebSocketServerSession.doClone(url: String) {
 
     if (repo.exists()) {
         logger.warn("repo exists, deleting...")
-        Runtime.getRuntime().exec("rm -rf " + repo.absolutePath)
+        repo.delete()
     }
 
-    CloneCommand()
-        .url(url)
-        .path(repo.absolutePath)
-        .onProgress {
-            if (it != 100) {
-                launch {
-                    sendStatus(Status.CHECKING_OUT, it.toString())
-                }
-            } else {
-                try {
-                    val output = doZip(repo)
-                    launch {
-                        sendStatus(Status.COMPLETED, output)
-                    }
-                    Runtime.getRuntime().exec("rm -rf " + repo.absolutePath)
-                } catch (e: Throwable) {
-                    e.printStackTrace()
-                }
-            }
-        }.onError {
-            Runtime.getRuntime().exec("rm -rf " + repo.absolutePath)
+    @Suppress("ObjectLiteralToLambda")
+    val fetchCallback = object : GitClone.FetchCallback {
+        override fun progress(receiveProgress: Int, indexProgress: Int) {
             launch {
-                sendStatus(Status.ERROR, "请检查仓库路径后重试")
+                onProgress(indexProgress, repo)
             }
-        }.call()
+        }
+    }
+
+    @Suppress("ObjectLiteralToLambda")
+    val checkoutCallback = object : GitClone.CheckoutCallback {
+        override fun progress(it: Int) {
+            launch {
+                onProgress(it, repo)
+            }
+        }
+    }
+
+    @Suppress("ObjectLiteralToLambda")
+    val errorCallback = object : GitClone.ErrorCallback {
+        override fun handleError(e: Throwable) {
+            onError(e)
+        }
+    }
+
+    GitClone.doClone(url, repo.absolutePath, fetchCallback, checkoutCallback, errorCallback)
 }
 
 fun Routing.files() {
@@ -236,7 +260,6 @@ fun Routing.files() {
 }
 
 private fun doZip(file: File): String {
-    val archiveDir = File(archiveDir)
     if (!archiveDir.exists()) {
         archiveDir.mkdirs()
     }
@@ -255,6 +278,7 @@ private fun doZip(file: File): String {
     return outputFile.name
 }
 
+@Throws(ZipException::class, IOException::class)
 private fun doZip0(file: File, zout: ZipOutputStream, bout: BufferedOutputStream, path: String) {
     println("compressing: ${path + File.separator + file.name}")
     if (file.isDirectory) {
