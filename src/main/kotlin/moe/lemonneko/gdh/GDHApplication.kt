@@ -41,18 +41,46 @@ private val httpClient = HttpClient(OkHttp)
 private const val HOUR = 1000L * 60 * 60
 private const val DAY = HOUR * 24
 
-fun main() {
-    println("=========================================================")
-    println("|                                                       |")
-    println("|      GGGGGGGGGG      DDDDDDDDDD      HHH      HHH     |")
-    println("|     GGG              DDD     DDD     HHH      HHH     |")
-    println("|    GGG     GGGGGG    DDD      DDD    HHHHHHHHHHHH     |")
-    println("|     GGG      GGG     DDD     DDD     HHH      HHH     |")
-    println("|      GGGGGGGGGG      DDDDDDDDDD      HHH      HHH     |")
-    println("|                                                       |")
-    println("|   - Help You To Downloading Resources From Github -   |")
-    println("|                                                       |")
-    println("=========================================================")
+private object Banner {
+    fun printBanner() {
+        println("=========================================================")
+        println("|                                                       |")
+        println("|      GGGGGGGGGG      DDDDDDDDDD      HHH      HHH     |")
+        println("|     GGG              DDD     DDD     HHH      HHH     |")
+        println("|    GGG     GGGGGG    DDD      DDD    HHHHHHHHHHHH     |")
+        println("|     GGG      GGG     DDD     DDD     HHH      HHH     |")
+        println("|      GGGGGGGGGG      DDDDDDDDDD      HHH      HHH     |")
+        println("|                                                       |")
+        println("|   - Help You To Downloading Resources From Github -   |")
+        println("|                                                       |")
+        println("=========================================================")
+    }
+}
+
+fun main(args: Array<String>) {
+    if (args.contains("--help") || args.contains("-h") || args.contains("-?")) {
+        println("Usage: java -jar gdh.jar [options]")
+        println("options:")
+        println("--port:[number] | -p:[number]")
+        println("program will bind to the specified port")
+        println("--help | -h | -? show this message")
+        println("--version | -v   show version")
+        return
+    }
+
+    if (args.contains("--version") || args.contains("-v")) {
+        Banner.printBanner()
+        println("version: 0.1")
+        return
+    }
+
+    var port = 4000
+    for (arg in args) {
+        if (arg.startsWith("--port") || arg.startsWith("-p")) {
+            port = arg.substring(arg.indexOf(':') + 1).toInt()
+            break
+        }
+    }
 
     NekoGit.init()
 
@@ -77,7 +105,7 @@ fun main() {
 
     embeddedServer(
         Netty,
-        port = 4000,
+        port = port,
         module = Application::mainModule
     ).start(wait = true)
 
