@@ -13,22 +13,21 @@ import io.ktor.routing.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.websocket.*
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import moe.lemonneko.nekogit.NekoGit
 import moe.lemonneko.nekogit.cmds.GitClone
+import moe.lemonneko.nekogit.exceptions.CloneException
 import org.slf4j.LoggerFactory
-import java.io.BufferedOutputStream
-import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
+import java.io.*
 import java.net.SocketTimeoutException
 import java.net.URL
 import java.util.zip.ZipEntry
 import java.util.zip.ZipException
 import java.util.zip.ZipOutputStream
 import kotlin.collections.set
-import kotlin.concurrent.thread
 import kotlin.math.floor
 
 private val logger = LoggerFactory.getLogger("GDHApplicationKt")
@@ -39,55 +38,88 @@ private val archiveDir = File(System.getProperty("user.home") + File.separator +
 
 private val httpClient = HttpClient(OkHttp)
 
+private const val HOUR = 1000L * 60 * 60
+private const val DAY = HOUR * 24
+
 fun main() {
+    println("=========================================================")
+    println("|                                                       |")
+    println("|      GGGGGGGGGG      DDDDDDDDDD      HHH      HHH     |")
+    println("|     GGG              DDD     DDD     HHH      HHH     |")
+    println("|    GGG     GGGGGG    DDD      DDD    HHHHHHHHHHHH     |")
+    println("|     GGG      GGG     DDD     DDD     HHH      HHH     |")
+    println("|      GGGGGGGGGG      DDDDDDDDDD      HHH      HHH     |")
+    println("|                                                       |")
+    println("|   - Help You To Downloading Resources From Github -   |")
+    println("|                                                       |")
+    println("=========================================================")
+
     NekoGit.init()
+
+    val oldFileDeleteJob = GlobalScope.launch {
+        logger.info("old file delete job started.")
+        while (true) {
+            archiveDir.listFiles { f ->
+                System.currentTimeMillis() - f.lastModified() > DAY
+            }?.forEach {
+                logger.info("deleting old file: ${it.name}")
+                it.delete()
+            }
+            delay(HOUR)
+        }
+    }
+
+    Runtime.getRuntime().addShutdownHook(Thread {
+        NekoGit.destroy()
+        oldFileDeleteJob.cancel()
+        logger.info("old file delete job stopped")
+    })
+
     embeddedServer(
         Netty,
         port = 4000,
         module = Application::mainModule
     ).start(wait = true)
+
     NekoGit.destroy()
 }
 
 fun Application.mainModule() {
     install(WebSockets)
-    install(AutoHeadResponse)
     routing {
-        webSocket()
+        webSocket(path = "/websocket", handler = DefaultWebSocketServerSession::websocket)
         files()
     }
 }
 
-fun Routing.webSocket() {
-    webSocket("/websocket") {
-        logger.info("websocket connected.")
-        if (!sessions.contains(this)) {
-            sessions.add(this)
-            logger.info("added this session to session list.")
-            sessions.forEach {
-                it.sendJson(listOf("online" to sessions.size.toString()))
-            }
+private suspend fun DefaultWebSocketServerSession.websocket() {
+    logger.info("websocket connected.")
+    if (!sessions.contains(this)) {
+        sessions.add(this)
+        logger.info("added this session to session list.")
+        sessions.forEach {
+            it.sendJson(listOf("online" to sessions.size.toString()))
         }
-        try {
-            var count = 0
-            for (frame in incoming) {
-                count++
-                logger.info("received message count: $count")
-                processMessage(frame)
-                logger.info("message process done")
-            }
-        } catch (e: ClosedReceiveChannelException) {
-            logger.info("session closed with: ${closeReason.await()}")
-        } catch (e: Throwable) {
-            logger.error("session error with: ${closeReason.await()}", e)
+    }
+    try {
+        var count = 0
+        for (frame in incoming) {
+            count++
+            logger.info("received message count: $count")
+            processMessage(frame)
+            logger.info("message process done")
         }
-        logger.info("session closed.")
-        if (sessions.contains(this)) {
-            sessions.remove(this)
-            logger.info("removed this session from session list.")
-            sessions.forEach {
-                it.sendJson(listOf("online" to sessions.size.toString()))
-            }
+    } catch (e: ClosedReceiveChannelException) {
+        logger.info("session closed with: ${closeReason.await()}")
+    } catch (e: Throwable) {
+        logger.error("session error with: ${closeReason.await()}", e)
+    }
+    logger.info("session closed.")
+    if (sessions.contains(this)) {
+        sessions.remove(this)
+        logger.info("removed this session from session list.")
+        sessions.forEach {
+            it.sendJson(listOf("online" to sessions.size.toString()))
         }
     }
 }
@@ -112,9 +144,11 @@ private suspend fun DefaultWebSocketServerSession.processMessage(frame: Frame) {
                     url ?: throw BadRequestException("request format error, url not found")
                     val fileName = url.substring(url.lastIndexOf('/') + 1)
                     sendStatus(Status.DOWNLOADING, "0")
-                    doDownload(url) {
+                    doDownload(url, {
                         sendStatus(Status.DOWNLOADING, it.toString())
                         logger.info("progress: $it")
+                    }) {
+                        throw it
                     }
                     sendStatus(Status.COMPLETED, fileName)
                     logger.info("done")
@@ -127,17 +161,19 @@ private suspend fun DefaultWebSocketServerSession.processMessage(frame: Frame) {
                 }
                 else -> throw BadRequestException("request method error: $request")
             }
-        } catch (e: JSONException) {
-            logger.error("error: ${e.message}", e)
-            sendStatus(Status.ERROR, "请求不是JSON，这是严重错误，请联系柠喵")
-        } catch (e: NullPointerException) {
-            logger.error("error: ${e.message}", e)
-            sendStatus(Status.ERROR, "请求格式错误，这是严重错误，请联系柠喵")
-        } catch (e: SocketTimeoutException) {
-            logger.error("error: ${e.message}", e)
-            sendStatus(Status.ERROR, "Github没有响应，请重试")
         } catch (e: Throwable) {
-            logger.error("error: ${e.message}", e)
+            when (e) {
+                is JSONException -> sendStatus(Status.ERROR, "请求不是JSON，这是严重错误，请联系柠喵")
+                is NullPointerException -> sendStatus(Status.ERROR, "请求格式错误，这是严重错误，请联系柠喵")
+                is SocketTimeoutException -> sendStatus(Status.ERROR, "Github没有响应，请重试")
+                is CloneException -> sendStatus(Status.ERROR, "仓库不存在或者仓库是私有仓库")
+                is FileNotFoundException -> sendStatus(Status.ERROR, "文件不存在，请检查链接是否正确")
+                is BadRequestException -> sendStatus(Status.ERROR, "请求格式错误，这是严重错误，请联系柠喵")
+                else -> {
+                    logger.error("error: ${e.message}", e)
+                    sendStatus(Status.ERROR, "未知错误，请联系柠喵")
+                }
+            }
         }
     }
 }
@@ -162,21 +198,32 @@ private suspend fun DefaultWebSocketServerSession.doCheck(token: String) {
     }
 }
 
-private fun DefaultWebSocketServerSession.doDownload(url: String, progress: suspend (Int) -> Unit) {
+private fun DefaultWebSocketServerSession.doDownload(
+    url: String,
+    progress: suspend (Int) -> Unit,
+    onError: (Throwable) -> Unit
+) {
     logger.info("do download, url=$url")
     val fileName = url.substring(url.lastIndexOf('/') + 1)
     logger.info("file name: $fileName")
     val file = File(archiveDir, fileName)
 
-    thread {
-        saveFileFromURL(url, file, progress)
-    }
+    saveFileFromURL(url, file, progress, onError)
 }
 
-private fun DefaultWebSocketServerSession.saveFileFromURL(url: String, file: File, progress: suspend (Int) -> Unit) {
+private fun DefaultWebSocketServerSession.saveFileFromURL(
+    url: String,
+    file: File,
+    progress: suspend (Int) -> Unit,
+    onError: (Throwable) -> Unit
+) {
     val connection = URL(url).openConnection()
     connection.connectTimeout = 5000
-    val contentLength = connection.contentLength.toFloat()
+
+    val contentLength: Float
+
+    contentLength = connection.contentLength.toFloat()
+
     logger.info("connected, content length: $contentLength")
     var i = 0F
 
@@ -190,7 +237,16 @@ private fun DefaultWebSocketServerSession.saveFileFromURL(url: String, file: Fil
 
     val out = BufferedOutputStream(FileOutputStream(file))
 
-    val input = connection.getInputStream().buffered()
+    val input: BufferedInputStream
+
+    try {
+        input = connection.getInputStream().buffered()
+    } catch (e: Throwable) {
+        out.close()
+        onError(e)
+        return
+    }
+
     var byte: Int
     do {
         byte = input.read()
@@ -302,14 +358,12 @@ private suspend fun DefaultWebSocketServerSession.sendJson(messagePairs: List<Pa
     send(Frame.Text(jsonObject.toJSONString()))
 }
 
-private suspend fun DefaultWebSocketServerSession.sendStatus(status: Status, text: String = "") {
-    sendJson(
-        listOf(
-            "status" to status.value,
-            "text" to text
-        )
+private suspend fun DefaultWebSocketServerSession.sendStatus(status: Status, text: String = "") = sendJson(
+    listOf(
+        "status" to status.value,
+        "text" to text
     )
-}
+)
 
 private enum class Status(val value: String) {
     PARSING("parsing"),
