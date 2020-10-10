@@ -32,4 +32,9 @@ class FileDownloadingHandler {
             logger.info("download completed")
         }
     }
+
+    @RequestMapping("/")
+    fun root(response: HttpServletResponse) {
+        response.sendRedirect("http://gdh.lemonneko.moe")
+    }
 }
