@@ -29,8 +29,6 @@ repositories {
 }
 
 dependencies {
-    implementation("org.springframework.session:spring-session:1.3.5.RELEASE")
-    implementation("moe.lemonneko:neko-git-common:1.0.7-SNAPSHOT")
     implementation("org.springframework.boot:spring-boot-starter")
     implementation("org.springframework.boot:spring-boot-starter-logging")
     implementation("org.springframework.boot:spring-boot-starter-websocket")
@@ -42,14 +40,9 @@ dependencies {
         exclude(group = "org.junit.vintage", module = "junit-vintage-engine")
     }
 
-    implementation("moe.lemonneko:neko-logger-common:2.0.47-SNAPSHOT")
+    implementation("moe.lemonneko:neko-logger-common:2.0.53-SNAPSHOT")
+    implementation("moe.lemonneko:neko-git-common:1.0.10-SNAPSHOT")
     implementation("org.slf4j:slf4j-api:2.0.0-alpha1")
-
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.9")
-}
-
-tasks.withType<Test> {
-    useJUnitPlatform()
 }
 
 tasks.withType<KotlinCompile> {
@@ -57,4 +50,13 @@ tasks.withType<KotlinCompile> {
         freeCompilerArgs = listOf("-Xjsr305=strict")
         jvmTarget = "11"
     }
+}
+
+tasks.findByPath(":bootJar")?.doLast("rename") {
+    val backendJar = file("build/libs/backend.jar")
+    if (backendJar.exists()) {
+        backendJar.delete()
+    }
+
+    file("build/libs/github-download-helper-${project.version}.jar").renameTo(backendJar)
 }

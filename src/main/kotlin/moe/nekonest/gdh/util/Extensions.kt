@@ -1,9 +1,10 @@
 package moe.nekonest.gdh.util
 
 import com.alibaba.fastjson.JSONObject
-import moe.nekonest.gdh.workingthreads.CloneCoroutine
-import moe.nekonest.gdh.workingthreads.DownloadCoroutine
-import java.net.URI
+import moe.nekonest.gdh.workingthreads.CloneThread
+import moe.nekonest.gdh.workingthreads.DownloadThread
+import java.io.File
+import java.io.IOException
 import javax.websocket.Session
 
 fun Session.sendJSON(vararg pairs: Pair<String, String>) {
@@ -19,14 +20,51 @@ fun Session.sendStatus(status: Status, text: String? = null) {
         sendJSON("status" to status.text)
     } else {
         sendJSON(
-                "status" to status.text,
-                "text" to text
+            "status" to status.text,
+            "text" to text
         )
     }
 }
 
-fun newDownloadJob(uri: URI) = DownloadCoroutine(uri)
-fun newCloneJob(uri: String) = CloneCoroutine(uri)
+fun File.deleteDir() {
+    if (!exists()) {
+        return
+    }
+    println("deleting $absolutePath")
+    if (isDirectory) {
+        val listFiles = listFiles()
+        if (listFiles == null) {
+            val deleted = delete()
+            if (!deleted) {
+                throw IOException("file cannot delete")
+            }
+        }
+        listFiles!!.forEach {
+            it.deleteDir()
+        }
+        val deleted = delete()
+        if (!deleted) {
+            throw IOException("file cannot delete")
+        }
+    } else {
+        val deleted = delete()
+        if (!deleted) {
+            throw IOException("file cannot delete")
+        }
+    }
+}
+
+fun getAvg(vararg numbers: Int): Int {
+    val numberOfNumbers = numbers.size
+    var added = 0
+    for (number in numbers) {
+        added += number
+    }
+    return added / numberOfNumbers
+}
+
+fun newDownloadJob(uri: String) = DownloadThread(uri)
+fun newCloneJob(uri: String) = CloneThread(uri)
 
 enum class Status(val text: String) {
     CHECKING("checking"),
@@ -35,5 +73,6 @@ enum class Status(val text: String) {
     DOWNLOADING("downloading"),
     COMPRESSING("compressing"),
     COMPLETED("completed"),
-    ERROR("error")
+    ERROR("error"),
+    KEEP_ALIVE("keep alive")
 }
