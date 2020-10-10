@@ -41,7 +41,7 @@ dependencies {
     implementation("io.ktor:ktor-client-okhttp:$ktor_version")
 
     implementation("moe.lemonneko:neko-logger-common:2.0.51-SNAPSHOT")
-    implementation("moe.lemonneko:neko-git-common:1.0.8-SNAPSHOT")
+    implementation("moe.lemonneko:neko-git-common:1.0.10-SNAPSHOT")
     implementation("org.slf4j:slf4j-api:2.0.0-alpha1")
 
     testImplementation("io.ktor:ktor-server-tests:$ktor_version")
