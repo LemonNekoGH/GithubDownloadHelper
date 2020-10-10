@@ -32,3 +32,5 @@ out/
 /src/main/resources/frontend/dist.zip
 /src/main/resources/frontend/github-proxy-frontend.zip
 /src/main/resources/frontend/github-proxy-*.jar
+
+*.dylib
